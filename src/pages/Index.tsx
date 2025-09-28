@@ -16,6 +16,7 @@ interface Exercise {
   name: string;
   sets: number;
   reps: number;
+  weight: number;
   notes: string;
 }
 
@@ -88,6 +89,7 @@ export default function Index() {
       name: '',
       sets: 0,
       reps: 0,
+      weight: 0,
       notes: ''
     };
     
@@ -345,7 +347,7 @@ export default function Index() {
                           disabled={!isEditing}
                         />
                         
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-2">
                           <div>
                             <Label className="text-sm">Подходы</Label>
                             <Input
@@ -364,6 +366,18 @@ export default function Index() {
                               onChange={(e) => updateExercise(exercise.id, 'reps', parseInt(e.target.value) || 0)}
                               disabled={!isEditing}
                               className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">Вес (кг)</Label>
+                            <Input
+                              type="number"
+                              value={exercise.weight}
+                              onChange={(e) => updateExercise(exercise.id, 'weight', parseFloat(e.target.value) || 0)}
+                              disabled={!isEditing}
+                              className="mt-1"
+                              step="0.5"
+                              placeholder="0"
                             />
                           </div>
                         </div>
