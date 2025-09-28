@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { vkService } from '@/utils/vkUtils';
+import { apiService, type Workout as ApiWorkout, type Exercise as ApiExercise } from '@/utils/apiService';
 
 interface Exercise {
   id: string;
@@ -34,6 +36,30 @@ export default function Index() {
   const [isWorkoutDialogOpen, setIsWorkoutDialogOpen] = useState(false);
   const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [vkUser, setVkUser] = useState<any>(null);
+
+  // Initialize VK and load data
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        setIsLoading(true);
+        await vkService.init();
+        const user = vkService.getCurrentUser();
+        setVkUser(user);
+        
+        // Load workouts from API
+        const apiWorkouts = await apiService.getWorkouts();
+        setWorkouts(apiWorkouts);
+      } catch (error) {
+        console.error('Failed to initialize app:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initApp();
+  }, []);
 
   const formatDateKey = (date: Date) => format(date, 'yyyy-MM-dd');
 
@@ -49,36 +75,84 @@ export default function Index() {
     return sortedWorkouts[0] || null;
   };
 
-  const handleDateSelect = (date: Date | undefined) => {
+  const handleDateSelect = async (date: Date | undefined) => {
     if (!date) return;
     
     setSelectedDate(date);
-    const workout = getWorkoutForDate(date);
+    setIsLoading(true);
     
-    if (workout) {
-      setCurrentWorkout(workout);
-      setIsEditing(false);
-    } else {
-      const newWorkout: Workout = {
-        id: Date.now().toString(),
-        name: 'Новая тренировка',
-        date: formatDateKey(date),
-        exercises: []
-      };
-      setCurrentWorkout(newWorkout);
-      setIsEditing(true);
+    try {
+      // Try to get workout from API
+      const dateKey = formatDateKey(date);
+      const apiWorkout = await apiService.getWorkout(dateKey);
+      
+      if (apiWorkout) {
+        setCurrentWorkout(apiWorkout);
+        setIsEditing(false);
+      } else {
+        const newWorkout: Workout = {
+          id: Date.now().toString(),
+          name: 'Новая тренировка',
+          date: dateKey,
+          exercises: []
+        };
+        setCurrentWorkout(newWorkout);
+        setIsEditing(true);
+      }
+      
+      setIsWorkoutDialogOpen(true);
+    } catch (error) {
+      console.error('Failed to load workout:', error);
+      // Fallback to local data
+      const workout = getWorkoutForDate(date);
+      if (workout) {
+        setCurrentWorkout(workout);
+        setIsEditing(false);
+      } else {
+        const newWorkout: Workout = {
+          id: Date.now().toString(),
+          name: 'Новая тренировка',
+          date: formatDateKey(date),
+          exercises: []
+        };
+        setCurrentWorkout(newWorkout);
+        setIsEditing(true);
+      }
+      setIsWorkoutDialogOpen(true);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsWorkoutDialogOpen(true);
   };
 
-  const saveWorkout = () => {
+  const saveWorkout = async () => {
     if (!currentWorkout) return;
     
-    const updatedWorkouts = workouts.filter(w => w.id !== currentWorkout.id);
-    setWorkouts([...updatedWorkouts, currentWorkout]);
-    setIsWorkoutDialogOpen(false);
-    setIsEditing(false);
+    setIsLoading(true);
+    
+    try {
+      // Save to API
+      await apiService.saveWorkout({
+        name: currentWorkout.name,
+        date: currentWorkout.date,
+        exercises: currentWorkout.exercises
+      });
+      
+      // Update local state
+      const updatedWorkouts = workouts.filter(w => w.date !== currentWorkout.date);
+      setWorkouts([...updatedWorkouts, currentWorkout]);
+      
+      setIsWorkoutDialogOpen(false);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to save workout:', error);
+      // Fallback to local storage
+      const updatedWorkouts = workouts.filter(w => w.id !== currentWorkout.id);
+      setWorkouts([...updatedWorkouts, currentWorkout]);
+      setIsWorkoutDialogOpen(false);
+      setIsEditing(false);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const addExercise = () => {
@@ -140,9 +214,17 @@ export default function Index() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-md mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 text-center">
-            Workout Tracker
-          </h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">
+              Workout Tracker
+            </h1>
+            {vkUser && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Icon name="User" size={16} />
+                {vkUser.first_name}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -402,9 +484,9 @@ export default function Index() {
               {/* Actions */}
               {isEditing && (
                 <div className="flex gap-2 pt-4">
-                  <Button onClick={saveWorkout} className="flex-1">
+                  <Button onClick={saveWorkout} className="flex-1" disabled={isLoading}>
                     <Icon name="Save" size={16} className="mr-2" />
-                    Сохранить
+                    {isLoading ? 'Сохранение...' : 'Сохранить'}
                   </Button>
                   <Button
                     variant="outline"
@@ -414,6 +496,7 @@ export default function Index() {
                         setIsWorkoutDialogOpen(false);
                       }
                     }}
+                    disabled={isLoading}
                   >
                     Отмена
                   </Button>
