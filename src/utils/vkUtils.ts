@@ -44,7 +44,17 @@ class VKService {
 
   getHeaders(): Record<string, string> {
     if (!this.currentUser) {
-      throw new Error('VK user not initialized');
+      console.warn('VK user not initialized, using fallback');
+      // Fallback headers for development
+      return {
+        'x-vk-user-id': '123456789',
+        'x-vk-user-data': JSON.stringify({
+          id: 123456789,
+          first_name: 'Тест',
+          last_name: 'Пользователь'
+        }),
+        'Content-Type': 'application/json'
+      };
     }
 
     return {

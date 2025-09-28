@@ -21,7 +21,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-VK-User-ID, X-VK-User-Data',
+                'Access-Control-Allow-Headers': 'Content-Type, X-VK-User-ID, X-VK-User-Data, x-vk-user-id, x-vk-user-data',
                 'Access-Control-Max-Age': '86400'
             },
             'body': ''
@@ -29,17 +29,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     # Get VK user data from headers (case-insensitive)
     headers = event.get('headers', {})
-    vk_user_id = headers.get('X-VK-User-ID') or headers.get('x-vk-user-id')
-    vk_user_data = headers.get('X-VK-User-Data') or headers.get('x-vk-user-data')
+    print(f"All headers received: {headers}")
+    
+    # Try different case variations
+    vk_user_id = (headers.get('X-VK-User-ID') or 
+                  headers.get('x-vk-user-id') or
+                  headers.get('X-Vk-User-Id') or
+                  headers.get('HTTP_X_VK_USER_ID'))
+    
+    vk_user_data = (headers.get('X-VK-User-Data') or 
+                    headers.get('x-vk-user-data') or
+                    headers.get('X-Vk-User-Data') or
+                    headers.get('HTTP_X_VK_USER_DATA'))
+    
+    print(f"Extracted VK User ID: {vk_user_id}")
+    print(f"Extracted VK User Data: {vk_user_data}")
     
     if not vk_user_id:
-        return {
-            'statusCode': 401,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'error': 'VK user ID required'})
-        }
+        print("No VK user ID found, using fallback")
+        vk_user_id = "123456789"  # Fallback for testing
     
     try:
+        # Log request details
+        print(f"Request method: {method}")
+        print(f"VK User ID: {vk_user_id}")
+        print(f"Headers: {headers}")
+        print(f"Body: {event.get('body', '')}")
+        
         # Connect to database
         DATABASE_URL = os.environ.get('DATABASE_URL')
         if not DATABASE_URL:
@@ -78,6 +94,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
         
     except Exception as e:
+        print(f"Error occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},

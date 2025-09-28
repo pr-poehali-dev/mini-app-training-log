@@ -29,16 +29,28 @@ class ApiService {
         ...options.headers
       };
 
+      console.log('Making API request:', {
+        url: `${API_URL}${endpoint}`,
+        method: options.method || 'GET',
+        headers
+      });
+
       const response = await fetch(`${API_URL}${endpoint}`, {
         ...options,
         headers
       });
 
+      console.log('API response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      console.log('API response data:', result);
+      return result;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
